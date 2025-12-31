@@ -452,3 +452,213 @@ TEST(Endianness, Reverse32string) {
     UTF::reverseIt(s32);
     EXPECT_EQ(s32, s32exp);
 }
+
+// ===== Case mapping tests =====
+
+TEST(CaseMapping, PolishLetters) {
+    UTF utf;
+    // Polish lowercase -> uppercase
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ą'), U'Ą');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ć'), U'Ć');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ę'), U'Ę');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ł'), U'Ł');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ń'), U'Ń');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ó'), U'Ó');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ś'), U'Ś');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ź'), U'Ź');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ż'), U'Ż');
+
+    // Polish uppercase -> lowercase
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ą'), U'ą');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ć'), U'ć');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ę'), U'ę');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ł'), U'ł');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ń'), U'ń');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ó'), U'ó');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ś'), U'ś');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ź'), U'ź');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ż'), U'ż');
+}
+
+TEST(CaseMapping, ASCIILetters) {
+    for (char32_t c = U'a'; c <= U'z'; c++) {
+        EXPECT_EQ(UTF::toUpperCodePoint(c), c - 32);
+    }
+    for (char32_t c = U'A'; c <= U'Z'; c++) {
+        EXPECT_EQ(UTF::toLowerCodePoint(c), c + 32);
+    }
+}
+
+TEST(CaseMapping, CyrillicLetters) {
+    // Russian lowercase а-я (0x0430-0x044F) -> uppercase А-Я (0x0410-0x042F)
+    for (char32_t c = 0x0430; c <= 0x044F; c++) {
+        EXPECT_EQ(UTF::toUpperCodePoint(c), c - 32);
+    }
+    for (char32_t c = 0x0410; c <= 0x042F; c++) {
+        EXPECT_EQ(UTF::toLowerCodePoint(c), c + 32);
+    }
+}
+
+TEST(CaseMapping, GermanSS) {
+    // ß -> SS (special 1:N mapping)
+    UTF utf;
+    u32string lower = U"straße";
+    u32string upper = utf.toUpper(lower);
+    EXPECT_EQ(upper, U"STRASSE");
+
+    // SS -> ss (simple)
+    u32string upperInput = U"STRASSE";
+    u32string lowerResult = utf.toLower(upperInput);
+    EXPECT_EQ(lowerResult, U"strasse");
+}
+
+TEST(CaseMapping, UTF8Convenience) {
+    UTF utf;
+    // Polish text
+    std::string lower = "zażółć gęślą jaźń";
+    std::string upper = utf.toUpper8(lower);
+    EXPECT_EQ(upper, "ZAŻÓŁĆ GĘŚLĄ JAŹŃ");
+
+    std::string back = utf.toLower8(upper);
+    EXPECT_EQ(back, lower);
+}
+
+TEST(CaseMapping, NoChange) {
+    // Numbers and symbols should not change
+    EXPECT_EQ(UTF::toUpperCodePoint(U'0'), U'0');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'0'), U'0');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'@'), U'@');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'@'), U'@');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'中'), U'中'); // Chinese character
+    EXPECT_EQ(UTF::toLowerCodePoint(U'中'), U'中');
+}
+
+TEST(CaseMapping, GreekLetters) {
+    UTF utf;
+    // Greek lowercase α-ω -> uppercase Α-Ω
+    EXPECT_EQ(UTF::toUpperCodePoint(U'α'), U'Α');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'β'), U'Β');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'γ'), U'Γ');
+    EXPECT_EQ(UTF::toUpperCodePoint(U'ω'), U'Ω');
+
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Α'), U'α');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Β'), U'β');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Γ'), U'γ');
+    EXPECT_EQ(UTF::toLowerCodePoint(U'Ω'), U'ω');
+}
+
+TEST(CaseMapping, SpecialCases) {
+    UTF utf;
+    // fi ligature (ﬁ U+FB01) -> FI
+    u32string fi = U"\uFB01";
+    u32string FI = utf.toUpper(fi);
+    EXPECT_EQ(FI, U"FI");
+
+    // fl ligature (ﬂ U+FB02) -> FL
+    u32string fl = U"\uFB02";
+    u32string FL = utf.toUpper(fl);
+    EXPECT_EQ(FL, U"FL");
+}
+
+// ===== Accent folding tests =====
+
+TEST(AccentFolding, StandardPolish) {
+    // Standard folding: ą→a, ę→e, ó→o, etc.
+    // But ł stays ł (separate letter, not a+combining)
+    EXPECT_EQ(UTF::foldAccent(U'ą'), U'a');
+    EXPECT_EQ(UTF::foldAccent(U'Ą'), U'A');
+    EXPECT_EQ(UTF::foldAccent(U'ć'), U'c');
+    EXPECT_EQ(UTF::foldAccent(U'Ć'), U'C');
+    EXPECT_EQ(UTF::foldAccent(U'ę'), U'e');
+    EXPECT_EQ(UTF::foldAccent(U'Ę'), U'E');
+    EXPECT_EQ(UTF::foldAccent(U'ń'), U'n');
+    EXPECT_EQ(UTF::foldAccent(U'Ń'), U'N');
+    EXPECT_EQ(UTF::foldAccent(U'ó'), U'o');
+    EXPECT_EQ(UTF::foldAccent(U'Ó'), U'O');
+    EXPECT_EQ(UTF::foldAccent(U'ś'), U's');
+    EXPECT_EQ(UTF::foldAccent(U'Ś'), U'S');
+    EXPECT_EQ(UTF::foldAccent(U'ź'), U'z');
+    EXPECT_EQ(UTF::foldAccent(U'Ź'), U'Z');
+    EXPECT_EQ(UTF::foldAccent(U'ż'), U'z');
+    EXPECT_EQ(UTF::foldAccent(U'Ż'), U'Z');
+
+    // ł is a separate letter - standard folding should NOT change it
+    EXPECT_EQ(UTF::foldAccent(U'ł'), U'ł');
+    EXPECT_EQ(UTF::foldAccent(U'Ł'), U'Ł');
+}
+
+TEST(AccentFolding, AggressivePolish) {
+    // Aggressive folding: ł→l (for search purposes)
+    EXPECT_EQ(UTF::foldAccentAggressive(U'ł'), U'l');
+    EXPECT_EQ(UTF::foldAccentAggressive(U'Ł'), U'L');
+
+    // Also handles ą→a etc.
+    EXPECT_EQ(UTF::foldAccentAggressive(U'ą'), U'a');
+}
+
+TEST(AccentFolding, OtherLetters) {
+    // German umlauts
+    EXPECT_EQ(UTF::foldAccent(U'ä'), U'a');
+    EXPECT_EQ(UTF::foldAccent(U'ö'), U'o');
+    EXPECT_EQ(UTF::foldAccent(U'ü'), U'u');
+
+    // French accents
+    EXPECT_EQ(UTF::foldAccent(U'é'), U'e');
+    EXPECT_EQ(UTF::foldAccent(U'è'), U'e');
+    EXPECT_EQ(UTF::foldAccent(U'ê'), U'e');
+    EXPECT_EQ(UTF::foldAccent(U'ç'), U'c');
+
+    // Nordic letters - these are separate letters (standard fold keeps them)
+    EXPECT_EQ(UTF::foldAccent(U'ø'), U'ø');
+    EXPECT_EQ(UTF::foldAccent(U'Ø'), U'Ø');
+
+    // Aggressive fold converts them
+    EXPECT_EQ(UTF::foldAccentAggressive(U'ø'), U'o');
+    EXPECT_EQ(UTF::foldAccentAggressive(U'Ø'), U'O');
+    EXPECT_EQ(UTF::foldAccentAggressive(U'đ'), U'd');
+    EXPECT_EQ(UTF::foldAccentAggressive(U'Đ'), U'D');
+}
+
+TEST(AccentFolding, AggressiveExpand) {
+    UTF utf;
+    // ß → ss
+    u32string str = U"straße";
+    u32string folded = utf.foldAccentsAggressive(str);
+    EXPECT_EQ(folded, U"strasse");
+
+    // æ → ae
+    u32string ae = U"Cæsar";
+    u32string ae_folded = utf.foldAccentsAggressive(ae);
+    EXPECT_EQ(ae_folded, U"Caesar");
+
+    // œ → oe
+    u32string oe = U"cœur";
+    u32string oe_folded = utf.foldAccentsAggressive(oe);
+    EXPECT_EQ(oe_folded, U"coeur");
+}
+
+TEST(AccentFolding, UTF8Convenience) {
+    UTF utf;
+    // Standard folding
+    std::string polishText = "zażółć gęślą jaźń";
+    std::string standard = utf.foldAccents8(polishText);
+    EXPECT_EQ(standard, "zazołc gesla jazn"); // ł stays ł
+
+    // Aggressive folding
+    std::string aggressive = utf.foldAccents8Aggressive(polishText);
+    EXPECT_EQ(aggressive, "zazolc gesla jazn"); // ł → l
+}
+
+TEST(AccentFolding, NoChange) {
+    // ASCII letters should not change
+    EXPECT_EQ(UTF::foldAccent(U'a'), U'a');
+    EXPECT_EQ(UTF::foldAccent(U'Z'), U'Z');
+
+    // Numbers should not change
+    EXPECT_EQ(UTF::foldAccent(U'0'), U'0');
+    EXPECT_EQ(UTF::foldAccent(U'9'), U'9');
+
+    // Symbols should not change
+    EXPECT_EQ(UTF::foldAccent(U'@'), U'@');
+    EXPECT_EQ(UTF::foldAccent(U'!'), U'!');
+}

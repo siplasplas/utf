@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 #include <cassert>
+#include <algorithm>
+#include "UnicodeData.hpp"
 
 using u16string_view = std::basic_string_view<char16_t>;
 using u32string_view = std::basic_string_view<char32_t>;
@@ -873,5 +875,195 @@ struct UTF {
     static int64_t determineU8LenExact(const char *s, const char *eos) {
         assert(s <= eos);
         return findNextUtf8AtHeader(s, eos) - s;
+    }
+
+    // ===== Case mapping =====
+
+    // Binary search helper for sorted pair arrays
+    static char32_t lookupInPairMap(char32_t cp,
+                                    const std::pair<char32_t, char32_t>* map,
+                                    size_t size) {
+        size_t lo = 0, hi = size;
+        while (lo < hi) {
+            size_t mid = lo + (hi - lo) / 2;
+            if (map[mid].first == cp)
+                return map[mid].second;
+            if (map[mid].first < cp)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        return cp; // not found, return unchanged
+    }
+
+    // Convert single code point to lowercase
+    static char32_t toLowerCodePoint(char32_t cp) {
+        return lookupInPairMap(cp, utf::data::lower_map, utf::data::lower_map_size);
+    }
+
+    // Convert single code point to uppercase (simple 1:1 mapping)
+    static char32_t toUpperCodePoint(char32_t cp) {
+        return lookupInPairMap(cp, utf::data::upper_map, utf::data::upper_map_size);
+    }
+
+    // Check if there's a special (1:N) uppercase mapping
+    static const utf::data::SpecialCase* findSpecialUpper(char32_t cp) {
+        size_t lo = 0, hi = utf::data::special_upper_size;
+        while (lo < hi) {
+            size_t mid = lo + (hi - lo) / 2;
+            if (utf::data::special_upper[mid].from == cp)
+                return &utf::data::special_upper[mid];
+            if (utf::data::special_upper[mid].from < cp)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        return nullptr;
+    }
+
+    // Convert u32string to lowercase
+    std::u32string toLower(const u32string_view& str) {
+        std::u32string result;
+        result.reserve(str.size());
+        for (char32_t cp : str) {
+            result.push_back(toLowerCodePoint(cp));
+        }
+        return result;
+    }
+
+    // Convert u32string to uppercase (handles 1:N mappings like ß→SS)
+    std::u32string toUpper(const u32string_view& str) {
+        std::u32string result;
+        result.reserve(str.size());
+        for (char32_t cp : str) {
+            const utf::data::SpecialCase* special = findSpecialUpper(cp);
+            if (special) {
+                for (uint8_t i = 0; i < special->len; i++) {
+                    result.push_back(special->to[i]);
+                }
+            } else {
+                result.push_back(toUpperCodePoint(cp));
+            }
+        }
+        return result;
+    }
+
+    // UTF-8 convenience: toLower
+    std::string toLower8(const std::string_view& str) {
+        std::u32string u32 = toUTF32(str);
+        std::u32string lower = toLower(u32);
+        return fromUTF32(lower);
+    }
+
+    // UTF-8 convenience: toUpper
+    std::string toUpper8(const std::string_view& str) {
+        std::u32string u32 = toUTF32(str);
+        std::u32string upper = toUpper(u32);
+        return fromUTF32(upper);
+    }
+
+    // ===== Accent folding =====
+
+    // Binary search in Decomposition table
+    static const utf::data::Decomposition* findDecomp(char32_t cp) {
+        size_t lo = 0, hi = utf::data::decomp_map_size;
+        while (lo < hi) {
+            size_t mid = lo + (hi - lo) / 2;
+            if (utf::data::decomp_map[mid].from == cp)
+                return &utf::data::decomp_map[mid];
+            if (utf::data::decomp_map[mid].from < cp)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        return nullptr;
+    }
+
+    // Standard accent folding: returns base character from canonical decomposition
+    // ą→a, é→e, but ł→ł (ł is a separate letter, not a+combining)
+    static char32_t foldAccent(char32_t cp) {
+        const utf::data::Decomposition* decomp = findDecomp(cp);
+        if (decomp && decomp->combining != 0) {
+            // Has combining mark - return base character
+            return decomp->base;
+        }
+        return cp; // No decomposition or no combining mark
+    }
+
+    // Aggressive accent folding: also folds ł→l, ø→o, etc.
+    static char32_t foldAccentAggressive(char32_t cp) {
+        // First try standard decomposition
+        char32_t folded = foldAccent(cp);
+        if (folded != cp) return folded;
+
+        // Check aggressive folding table (ł→l, ø→o, etc.)
+        size_t lo = 0, hi = utf::data::aggressive_fold_size;
+        while (lo < hi) {
+            size_t mid = lo + (hi - lo) / 2;
+            if (utf::data::aggressive_fold[mid].first == cp)
+                return utf::data::aggressive_fold[mid].second;
+            if (utf::data::aggressive_fold[mid].first < cp)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        return cp;
+    }
+
+    // Find aggressive expand (ß→ss, æ→ae)
+    static const utf::data::AggressiveExpand* findAggressiveExpand(char32_t cp) {
+        size_t lo = 0, hi = utf::data::aggressive_expand_size;
+        while (lo < hi) {
+            size_t mid = lo + (hi - lo) / 2;
+            if (utf::data::aggressive_expand[mid].from == cp)
+                return &utf::data::aggressive_expand[mid];
+            if (utf::data::aggressive_expand[mid].from < cp)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        return nullptr;
+    }
+
+    // Standard folding for string
+    std::u32string foldAccents(const u32string_view& str) {
+        std::u32string result;
+        result.reserve(str.size());
+        for (char32_t cp : str) {
+            result.push_back(foldAccent(cp));
+        }
+        return result;
+    }
+
+    // Aggressive folding for string (handles 1:N like ß→ss)
+    std::u32string foldAccentsAggressive(const u32string_view& str) {
+        std::u32string result;
+        result.reserve(str.size());
+        for (char32_t cp : str) {
+            // Check for expansions first (ß→ss, æ→ae)
+            const utf::data::AggressiveExpand* expand = findAggressiveExpand(cp);
+            if (expand) {
+                for (const char* p = expand->to; *p; ++p) {
+                    result.push_back(static_cast<char32_t>(*p));
+                }
+            } else {
+                result.push_back(foldAccentAggressive(cp));
+            }
+        }
+        return result;
+    }
+
+    // UTF-8 convenience: standard folding
+    std::string foldAccents8(const std::string_view& str) {
+        std::u32string u32 = toUTF32(str);
+        std::u32string folded = foldAccents(u32);
+        return fromUTF32(folded);
+    }
+
+    // UTF-8 convenience: aggressive folding
+    std::string foldAccents8Aggressive(const std::string_view& str) {
+        std::u32string u32 = toUTF32(str);
+        std::u32string folded = foldAccentsAggressive(u32);
+        return fromUTF32(folded);
     }
 };

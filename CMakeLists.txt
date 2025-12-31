@@ -5,16 +5,22 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_definitions("-Werror=return-type")
 
-# Include directories
-include_directories(include)
+# UTF library (static)
+add_library(utf STATIC
+        generated/CaseData.cpp
+        generated/DecompData.cpp)
+
+target_include_directories(utf PUBLIC include)
 
 # Tests
 add_executable(gtests
         test/test.cpp)
 
-target_link_libraries(gtests gtest gtest_main)
+target_link_libraries(gtests utf gtest gtest_main)
 
 # Converter tool
 add_executable(convutf converter.cpp
         Args.h
         Args.cpp)
+
+target_link_libraries(convutf utf)
