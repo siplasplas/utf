@@ -8,7 +8,9 @@ add_definitions("-Werror=return-type")
 # UTF library (static)
 add_library(utf STATIC
         generated/CaseData.cpp
-        generated/DecompData.cpp)
+        generated/DecompData.cpp
+        generated/CollationData.cpp
+        src/Collator.cpp)
 
 target_include_directories(utf PUBLIC include)
 

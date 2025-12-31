@@ -3,6 +3,7 @@
 //
 #include <gtest/gtest.h>
 #include "utf/UTF.hpp"
+#include "utf/Collator.hpp"
 
 bool skipHard = false;
 
@@ -661,4 +662,93 @@ TEST(AccentFolding, NoChange) {
     // Symbols should not change
     EXPECT_EQ(UTF::foldAccent(U'@'), U'@');
     EXPECT_EQ(UTF::foldAccent(U'!'), U'!');
+}
+
+// ===== Collation tests =====
+
+TEST(Collation, PolishOrder) {
+    utf::Collator pl("pl");
+
+    // Polish alphabet: A Ą B C Ć D E Ę F G H I J K L Ł M N Ń O Ó P R S Ś T U W Y Z Ź Ż
+    // ą should come after a, before b
+    EXPECT_LT(pl.compare("a", "ą"), 0);
+    EXPECT_LT(pl.compare("ą", "b"), 0);
+
+    // ć after c, before d
+    EXPECT_LT(pl.compare("c", "ć"), 0);
+    EXPECT_LT(pl.compare("ć", "d"), 0);
+
+    // ł after l, before m
+    EXPECT_LT(pl.compare("l", "ł"), 0);
+    EXPECT_LT(pl.compare("ł", "m"), 0);
+
+    // ź before ż
+    EXPECT_LT(pl.compare("z", "ź"), 0);
+    EXPECT_LT(pl.compare("ź", "ż"), 0);
+}
+
+TEST(Collation, CzechOrder) {
+    utf::Collator cs("cs");
+
+    // Czech: ch is a separate letter after h
+    EXPECT_LT(cs.compare("h", "ch"), 0);
+    EXPECT_LT(cs.compare("ch", "i"), 0);
+
+    // č after c
+    EXPECT_LT(cs.compare("c", "č"), 0);
+    EXPECT_LT(cs.compare("č", "d"), 0);
+
+    // ř after r
+    EXPECT_LT(cs.compare("r", "ř"), 0);
+    EXPECT_LT(cs.compare("ř", "s"), 0);
+}
+
+TEST(Collation, RootOrder) {
+    utf::Collator root("root");
+
+    // Basic ASCII ordering
+    EXPECT_LT(root.compare("a", "b"), 0);
+    EXPECT_LT(root.compare("b", "c"), 0);
+    EXPECT_LT(root.compare("y", "z"), 0);
+
+    // Same strings
+    EXPECT_EQ(root.compare("hello", "hello"), 0);
+
+    // Length matters
+    EXPECT_LT(root.compare("a", "aa"), 0);
+    EXPECT_GT(root.compare("aa", "a"), 0);
+}
+
+TEST(Collation, CaseStrength) {
+    utf::Collator coll("root");
+
+    // Default (tertiary) - case matters
+    coll.setStrength(utf::CollationStrength::Tertiary);
+    EXPECT_NE(coll.compare("a", "A"), 0);
+
+    // Primary - case ignored
+    coll.setStrength(utf::CollationStrength::Primary);
+    EXPECT_EQ(coll.compare("a", "A"), 0);
+    EXPECT_EQ(coll.compare("abc", "ABC"), 0);
+}
+
+TEST(Collation, SortKey) {
+    utf::Collator pl("pl");
+
+    auto key1 = pl.getSortKey("a");
+    auto key2 = pl.getSortKey("ą");
+    auto key3 = pl.getSortKey("b");
+
+    // Sort keys should maintain order
+    EXPECT_LT(key1, key2);
+    EXPECT_LT(key2, key3);
+}
+
+TEST(Collation, PolishWords) {
+    utf::Collator pl("pl");
+
+    // Real Polish words
+    EXPECT_LT(pl.compare("łódka", "morze"), 0);  // ł < m
+    EXPECT_LT(pl.compare("cena", "ćma"), 0);     // c < ć
+    EXPECT_LT(pl.compare("żaba", "żółw"), 0);    // same start, shorter first
 }
