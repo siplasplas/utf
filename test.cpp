@@ -21,13 +21,13 @@ u32string fillDstring() {
     return dstr;
 }
 
-TEST(Conv, u32to8) {
+TEST(Conv, fromUTF32) {
     if (skipHard)
         GTEST_SKIP();
     u32string dstr = fillDstring();
     UTF utf;
-    string str = utf.u32to8(dstr);
-    u32string dstr1 = utf.u8to32(str);
+    string str = utf.fromUTF32(dstr);
+    u32string dstr1 = utf.toUTF32(str);
     bool fail32to8 = false;
     EXPECT_EQ(dstr.size(), dstr1.size());
     for (int i = 0; i <= dstr.size(); i++) {
@@ -39,13 +39,13 @@ TEST(Conv, u32to8) {
     EXPECT_FALSE(fail32to8);
 }
 
-TEST(Conv, u32to16) {
+TEST(Conv, fromUTF32to16) {
     if (skipHard)
         GTEST_SKIP();
     u32string dstr = fillDstring();
     UTF utf;
-    u16string wstr = utf.u32to16(dstr);
-    u32string dstr1 = utf.u16to32(wstr);
+    u16string wstr = utf.fromUTF32to16(dstr);
+    u32string dstr1 = utf.toUTF32(wstr);
     bool fail32to16 = false;
     EXPECT_EQ(dstr.size(), dstr1.size());
     for (int i = 0; i <= dstr.size(); i++) {
@@ -57,14 +57,14 @@ TEST(Conv, u32to16) {
     EXPECT_FALSE(fail32to16);
 }
 
-TEST(Conv, u8to16) {
+TEST(Conv, toUTF16) {
     if (skipHard)
         GTEST_SKIP();
     u32string dstr = fillDstring();
     UTF utf;
-    string str = utf.u32to8(dstr);
-    u16string wstr = utf.u8to16(str);
-    string str1 = utf.u16to8(wstr);
+    string str = utf.fromUTF32(dstr);
+    u16string wstr = utf.toUTF16(str);
+    string str1 = utf.toUTF8(wstr);
     bool fail8to16 = false;
     EXPECT_EQ(str.size(), str1.size());
     for (int i = 0; i <= str.size(); i++) {
@@ -76,14 +76,14 @@ TEST(Conv, u8to16) {
     EXPECT_FALSE(fail8to16);
 }
 
-TEST(Conv, u16to8) {
+TEST(Conv, toUTF8) {
     if (skipHard)
         GTEST_SKIP();
     u32string dstr = fillDstring();
     UTF utf;
-    u16string wstr = utf.u32to16(dstr);
-    string str = utf.u16to8(wstr);
-    u16string wstr1 = utf.u8to16(str);
+    u16string wstr = utf.fromUTF32to16(dstr);
+    string str = utf.toUTF8(wstr);
+    u16string wstr1 = utf.toUTF16(str);
     bool fail16to8 = false;
     EXPECT_EQ(wstr.size(), wstr1.size());
     for (int i = 0; i <= wstr.size(); i++) {
@@ -95,14 +95,14 @@ TEST(Conv, u16to8) {
     EXPECT_FALSE(fail16to8);
 }
 
-TEST(Conv, u16to8Z) {
+TEST(Conv, toUTF8Z) {
     if (skipHard)
         GTEST_SKIP();
     u32string dstr = fillDstring();
     UTF utf;
-    u16string wstr = utf.u32to16(dstr);
-    string str = utf.u16to8(wstr.c_str());
-    u16string wstr1 = utf.u8to16(str.c_str());
+    u16string wstr = utf.fromUTF32to16(dstr);
+    string str = utf.toUTF8(wstr.c_str());
+    u16string wstr1 = utf.toUTF16(str.c_str());
     bool fail16to8 = false;
     EXPECT_EQ(wstr.size(), wstr1.size());
     for (int i = 0; i <= wstr.size(); i++) {
@@ -117,10 +117,10 @@ TEST(Conv, u16to8Z) {
 TEST(Errors, on1) {
     UTF utf;
     string str = "b\xc4\x85k";
-    u16string wstr = utf.u8to16(str);
+    u16string wstr = utf.toUTF16(str);
     EXPECT_EQ(wstr, u"b\u0105k");
     string str1 = "b\xc4k";
-    u16string wstr1 = utf.u8to16(str1);
+    u16string wstr1 = utf.toUTF16(str1);
     EXPECT_EQ(wstr1, u"b\ufffdk");
 }
 
@@ -128,8 +128,8 @@ TEST(CorrectUtf8, len1) {
     string str = "a\106b";
     u32string expect{'a', 0106, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
-    u16string wstr = utf.u32to16(dstr);
+    u32string dstr = utf.toUTF32(str);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\106b");
 }
@@ -139,8 +139,8 @@ TEST(CorrectUtf8, len2) {
     string str = "a\325\252b";
     u32string expect{'a', 02552, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
-    u16string wstr = utf.u32to16(dstr);
+    u32string dstr = utf.toUTF32(str);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\x056a\x0062");
 }
@@ -150,8 +150,8 @@ TEST(CorrectUtf8, len3) {
     string str = "a\352\252\252b";
     u32string expect{'a', 0xaaaa, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
-    u16string wstr = utf.u32to16(dstr);
+    u32string dstr = utf.toUTF32(str);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\uaaaab");
 }
@@ -164,9 +164,9 @@ TEST(AmbigUtf8, slash2) {
     //11000000 10101111
     u32string expect{'a', 0xfffd, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errambig, 1);
-    u16string wstr = utf.u32to16(dstr);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\xfffd\x0062");
 }
@@ -176,9 +176,9 @@ TEST(AmbigUtf8, slash3) {
     //11100000 10000000 10101111
     u32string expect{'a', 0xfffd, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errambig, 1);
-    u16string wstr = utf.u32to16(dstr);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\xfffd\x0062");
 }
@@ -188,9 +188,9 @@ TEST(AmbigUtf8, len4) {
     //11110000 10000000 10000000 10000011
     u32string expect{'a', 0xfffd, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errambig, 1);
-    u16string wstr = utf.u32to16(dstr);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\xfffd\x0062");
 }
@@ -200,9 +200,9 @@ TEST(ExceedsUtf16, len4) {
     //11110111 10111111 10111111 10111111
     u32string expect{'a', 0x1FFFFF, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errors, 0);
-    u16string wstr = utf.u32to16(dstr);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(utf.errors, 1);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\xfffd\x0062");
@@ -214,9 +214,9 @@ TEST(ExceedsUtf16, len5) {
     //10000000000000000000000000
     u32string expect{'a', 0x2000000, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errors, 0);
-    u16string wstr = utf.u32to16(dstr);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(utf.errors, 1);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\xfffd\x0062");
@@ -228,9 +228,9 @@ TEST(ExceedsUtf16, len6) {
     //1000000000000000000000000000000
     u32string expect{'a', 0x40000000, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errors, 0);
-    u16string wstr = utf.u32to16(dstr);
+    u16string wstr = utf.fromUTF32to16(dstr);
     EXPECT_EQ(utf.errors, 1);
     EXPECT_EQ(dstr, expect);
     EXPECT_EQ(wstr, u"a\xfffd\x0062");
@@ -249,7 +249,7 @@ TEST(ut8errors, inside) {
         str += "b";
         expect.push_back('b');
         UTF utf;
-        u32string dstr = utf.u8to32(str);
+        u32string dstr = utf.toUTF32(str);
         EXPECT_EQ(utf.errors, len);
         EXPECT_EQ(dstr, expect);
     }
@@ -260,7 +260,7 @@ TEST(utf8errors, onlyHead) {
     string str = "a\337b";
     u32string expect{'a', 0xfffd, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errors, 1);
     EXPECT_EQ(dstr, expect);
 }
@@ -269,7 +269,7 @@ TEST(utf8errors, headAndLessBytes) {
     string str = "a\357\252b";
     u32string expect{'a', 0xfffd, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errors, 1);
     EXPECT_EQ(dstr, expect);
 }
@@ -278,7 +278,7 @@ TEST(utf8errors, twoHeads) {
     string str = "a\357\337b";
     u32string expect{'a', 0xfffd, 0xfffd, 'b'};
     UTF utf;
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     EXPECT_EQ(utf.errors, 2);
     EXPECT_EQ(dstr, expect);
 }
@@ -314,8 +314,8 @@ TEST(Find, len4) {
 TEST(Len, simple) {
     string str = "bąk";
     UTF utf;
-    EXPECT_EQ(utf.getU32Len(str), 3);
-    EXPECT_EQ(utf.getU16Len(str), 3);
+    EXPECT_EQ(utf.countCodePoints(str), 3);
+    EXPECT_EQ(utf.length16(str), 3);
 }
 
 TEST(Ncodes, forback) {
@@ -363,22 +363,22 @@ TEST(Ncodes, forback) {
 TEST(Substr, Unicode) {
     UTF utf;
     string str = "01.123ąęć1\U00013032А\U00013032БВГДЕαβεζηλ345";
-    u16string wstr = utf.u8to16(str);
-    u32string dstr = utf.u8to32(str);
+    u16string wstr = utf.toUTF16(str);
+    u32string dstr = utf.toUTF32(str);
     for (int i = -2; i <= (int) dstr.size() + 1; i++) {
         for (int j = i - 2; j < (int) dstr.size() + 1; j++) {
             u32string sub32to32 = utf.substr32(dstr, i, j - i);
-            string sub32to32to8 = utf.u32to8(sub32to32);
-            u16string sub32to32to16 = utf.u32to16(sub32to32);
-            string sub8to8 = utf.u8to8substr(str, i, j - i);
+            string sub32to32to8 = utf.fromUTF32(sub32to32);
+            u16string sub32to32to16 = utf.fromUTF32to16(sub32to32);
+            string sub8to8 = utf.substr8(str, i, j - i);
             EXPECT_EQ(sub8to8, sub32to32to8);
-            string sub16to8 = utf.u16to8substr(wstr, i, j - i);
+            string sub16to8 = utf.substr8From16(wstr, i, j - i);
             EXPECT_EQ(sub16to8, sub32to32to8);
-            u16string sub8to16 = utf.u8to16substr(str, i, j - i);
+            u16string sub8to16 = utf.substrToUTF16(str, i, j - i);
             EXPECT_EQ(sub8to16, sub32to32to16);
-            u16string sub16to16 = utf.u16to16substr(wstr, i, j - i);
+            u16string sub16to16 = utf.substr16(wstr, i, j - i);
             EXPECT_EQ(sub16to16, sub32to32to16);
-            u32string sub8to32 = utf.u8to32substr(str, i, j - i);
+            u32string sub8to32 = utf.substrToUTF32(str, i, j - i);
             EXPECT_EQ(sub8to32, sub32to32);
         }
     }
@@ -388,20 +388,20 @@ TEST(Subview, Unicode) {
     UTF utf;
     string str = "01.123ąęć1\U00013032А\U00013032БВГДЕαβεζηλ345";
     auto view8 = std::string_view(str);
-    u16string wstr = utf.u8to16(str);
+    u16string wstr = utf.toUTF16(str);
     auto view16 = u16string_view(wstr);
-    u32string dstr = utf.u8to32(str);
+    u32string dstr = utf.toUTF32(str);
     for (int i = -2; i <= (int) dstr.size() + 1; i++) {
         for (int j = i - 2; j < (int) dstr.size() + 1; j++) {
             u32string sub32to32 = utf.substr32(dstr, i, j - i);
-            std::string sub8 = utf.u32to8(sub32to32);
-            std::u16string sub16 = utf.u32to16(sub32to32);
+            std::string sub8 = utf.fromUTF32(sub32to32);
+            std::u16string sub16 = utf.fromUTF32to16(sub32to32);
             auto subview8 = std::string_view(sub8);
             auto subview16 = u16string_view(sub16);
-            auto subview8a = utf.u8subview(str, i, j - i);
-            auto subview8b = utf.u8subview(view8, i, j - i);
-            auto subview16a = utf.u16subview(wstr, i, j - i);
-            auto subview16b = utf.u16subview(view16, i, j - i);
+            auto subview8a = utf.subview8(str, i, j - i);
+            auto subview8b = utf.subview8(view8, i, j - i);
+            auto subview16a = utf.subview16(wstr, i, j - i);
+            auto subview16b = utf.subview16(view16, i, j - i);
             EXPECT_EQ(subview8a, subview8);
             EXPECT_EQ(subview8b, subview8);
             EXPECT_EQ(subview16a, subview16);
