@@ -1,5 +1,6 @@
 .idea
 .claude
+build
 cmake-build-debug
 cmake-build-release
 cmake-build-debug-coverage
@@ -7,3 +8,6 @@ cmake-build-release-coverage
 
 # Unicode data (downloaded, not in repo)
 tools/unicode_data/
+
+# Python cache
+__pycache__/
