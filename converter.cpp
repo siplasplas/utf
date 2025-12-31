@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 #include "Args.h"
-#include "UTF.hpp"
+#include "utf/UTF.hpp"
 
 using namespace std;
 
@@ -32,7 +32,7 @@ u32string readTo32(string inFile, int inFormat) {
                 cout << "error reading " << inFile << endl;
                 exit(1);
             }
-            return utf.u8to32(string_view(buffer.data(), size));
+            return utf.toUTF32(string_view(buffer.data(), size));
         }
             break;
         case 2:
@@ -45,7 +45,7 @@ u32string readTo32(string inFile, int inFormat) {
             if (inFormat == 3)
                 for (char16_t &c : buffer)
                     c = UTF::swap16(c);
-            return utf.u16to32(u16string_view(buffer.data(), buffer.size()));
+            return utf.toUTF32(u16string_view(buffer.data(), buffer.size()));
         }
             break;
         case 4:
@@ -72,13 +72,13 @@ void saveTo(const u32string &u32, const string &outFile, int outFormat) {
     UTF utf;
     switch (outFormat) {
         case 1: {
-            string u8 = utf.u32to8(u32);
+            string u8 = utf.fromUTF32(u32);
             file.write(u8.c_str(), u8.size());
         }
             break;
         case 2:
         case 3: {
-            u16string u16 = utf.u32to16(u32);
+            u16string u16 = utf.fromUTF32to16(u32);
             if (outFormat == 3)
                 utf.swapIt(u16);
             file.write((char *) (u16.c_str()), u16.size() * 2);

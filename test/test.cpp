@@ -2,7 +2,7 @@
 // Created by andrzej on 8/27/22.
 //
 #include <gtest/gtest.h>
-#include "UTF.hpp"
+#include "utf/UTF.hpp"
 
 bool skipHard = false;
 
